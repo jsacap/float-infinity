@@ -213,3 +213,7 @@ Thumbs.db
 *.pem
 *.cert
 *.key
+
+
+# OTHERS
+defs.py
