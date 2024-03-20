@@ -65,13 +65,14 @@ def get_fx_data():
 
 
 def trend_signals():
-    fx_pairs = ['AUD_JPY', 'NZD_JPY', 'EUR_JPY', 'GBP_JPY', 'USD_JPY', 'AUD_USD', 'AUD_CAD',
-                'NZD_USD', 'EUR_USD', 'GBP_USD', 'USD_CAD', 'XAU_USD', 'BTC_USD', 'WTICO_USD']
+    fx_pairs = ['AUD_CAD', 'AUD_USD', 'NZD_USD', 'EUR_USD', 'GBP_JPY', 'GBP_USD', 'USD_CAD',
+                'USD_JPY', 'XAU_USD', 'WTICO_USD', 'NAS100_USD', 'SPX500_USD', 'AU200_AUD', 'BTC_USD']
+
     timeframes = ['H1', 'H4', 'D']
     session = requests.Session()
     fx_dataframes = {}
-    trend_df_columns = ['Asset'] + [f'MOMO_{timeframe}' for timeframe in timeframes] + [
-        f'PATI_{timeframe}' for timeframe in timeframes]
+    trend_df_columns = ['Asset'] + [f'MOMO_{timeframe}' for timeframe in timeframes] + [f'PATI_{
+        timeframe}' for timeframe in timeframes] + [f'OE_{timeframe}' for timeframe in timeframes]
 
     trend_data_list = []
     total_bytes = 0
@@ -101,6 +102,14 @@ def trend_signals():
                 df['MOMO'] = np.where(
                     df['SMA_FAST'] > df['SMA_SLOW'], 'Uptrend', 'Downtrend')
                 df['RSI'] = ta.rsi(df['close'], length=14)
+                df['OE'] = 'Neutral'
+                for i in range(7, len(df)):
+                    current_slice = df.iloc[i-7:i+1]
+                    if (current_slice['RSI'] > 80).any():
+                        df.at[df.index[i], 'OE'] = 'Downtrend'
+                    elif (current_slice['RSI'] < 20).any():
+                        df.at[df.index[i], 'OE'] = 'Uptrend'
+
                 fx_dataframes[(instrument, timeframe)] = df
 
                 # Initialize variables for trend tracing logic
@@ -222,6 +231,7 @@ def trend_signals():
                 column_name = f'PATI_{timeframe}'
                 trend_data[column_name] = final_trend
                 trend_data[f'MOMO_{timeframe}'] = df['MOMO'].iloc[-1]
+                trend_data[f'OE_{timeframe}'] = df['OE'].iloc[-1]
             else:
                 print(f"Failed to fetch data for {instrument} with granularity {
                       timeframe}: {response.status_code}")
@@ -239,8 +249,9 @@ def trend_signals():
     trend_df['Uptrend_Count'] = trend_df.apply(
         lambda row: (row == 'Uptrend').sum(), axis=1)
     trend_df['Downtrend_Count'] = trend_df.apply(
-        lambda row: (row == 'Downtrend').sum(), axis=1)
-    trend_df = trend_df.sort_index()
+        lambda row: sum(-1 for val in row if val == 'Downtrend'), axis=1)
+
+    trend_df['Score'] = trend_df['Uptrend_Count'] + trend_df['Downtrend_Count']
 
     return trend_df
 
